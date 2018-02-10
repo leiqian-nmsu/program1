@@ -27,12 +27,12 @@ import java.util.Date;
 import java.text.DateFormat;
 import java.util.TimeZone;
 
-public class WebWorker implements Runnable
+public class WebWorker implements Runnable 
 {
-
    private Socket socket;
    private File toRead;
    private String fileName;
+   private String content_type;
 
    /**
    * Constructor: must have a valid open socket
@@ -56,8 +56,8 @@ public class WebWorker implements Runnable
          InputStream  is = socket.getInputStream();
          OutputStream os = socket.getOutputStream();
          readHTTPRequest(is);
-         writeHTTPHeader(os,"text/html");
-         writeContent(os);
+         writeHTTPHeader(os, content_type);
+         writeContent(os, content_type);
          os.flush();
          socket.close();
       } 
@@ -75,6 +75,7 @@ public class WebWorker implements Runnable
    {
       String line;
       String nameExtStep1;
+
       BufferedReader r = new BufferedReader(new InputStreamReader(is));
       while (true) {
          try {
@@ -89,7 +90,18 @@ public class WebWorker implements Runnable
                fileName = nameExtStep1.substring(nameExtStep1.lastIndexOf("/") + 1, nameExtStep1.indexOf("HTTP") - 1);
                System.out.println("\nThe extracted file name from request path is: " + fileName + "\n"); 
             }
-                  
+            
+            if(fileName.toLowerCase().contains((".GIF").toLowerCase())) 
+               content_type = "image/gif";
+               
+            else if(fileName.toLowerCase().contains((".JPEG").toLowerCase()))
+               content_type = "image/jpeg";
+
+            else if(fileName.toLowerCase().contains((".PNG").toLowerCase()))
+               content_type = "image/png";  
+            else 
+               content_type = "text/html";          
+                              
             if (line.length()==0) 
                 break;
          }  
@@ -153,69 +165,82 @@ public class WebWorker implements Runnable
    * be done after the HTTP header has been written out.
    * @param os is the OutputStream object to write to
    **/
-   private void writeContent(OutputStream os) throws Exception
+   private void writeContent(OutputStream os, String contentType) throws Exception
    {
    
-      int c;
-      String s = "\nLei's Server Starts !";
-      final int EOF = -1;
+//      int c;
+      String s = "Server's ID String: Lei's Server Starts !";
+//      final int EOF = -1;
        
-      if(toRead.exists()) {
-   
+      if(toRead.exists() && contentType.equals("text/html")) {
+      
          os.write("<html><head></head><body>\n".getBytes());
          os.write("<h3>My web server works!</h3>\n".getBytes());
          os.write("</body></html>\n".getBytes());
          
-         // Create a FileInputStream object for following step in writing the html file content.
-         FileInputStream istream = new FileInputStream(toRead);
+/* This is an alternative way to write the contents in text/html file  
+         FileInputStream streamInTXT = new FileInputStream(toRead);
          try {
-            while((c = istream.read()) != EOF) {
+            while((c = streamInTXT.read()) != EOF) {
                os.write(c);      
-            }
-         }
+            } // end while
+         } // end try
          catch(IOException e) {
-   
             System.out.println("Error: " + e.getMessage());
-         }
+         } // end catch
+*/       
          
-         // Create a FileReader object for following step in checking specific tag in html file.
          FileReader fReader = new FileReader(toRead);
          BufferedReader bReader = new BufferedReader(fReader);
          StringBuffer sBuffer = new StringBuffer();
    
          String line;
          while((line = bReader.readLine()) != null) {
-            // Append the specific string to this character sequence. 
-            sBuffer.append(line);
-            // Add "\n" to separate different line. 
-            sBuffer.append("\n");
-         }
-         fReader.close();
-   
-         if(sBuffer.toString().contains("<cs371date>")) {
-            Date d = new Date();
-            DateFormat df = DateFormat.getDateTimeInstance();
-            df.setTimeZone(TimeZone.getTimeZone("GMT"));
+             
+            if(line.contains("<cs371date>")) {
+         
+               Date d = new Date();
                   
-            os.write("Date: ".getBytes());
-            os.write((df.format(d)).getBytes());
-            os.write("\n".getBytes());
-         }
+                  String dateString = line.replaceAll("<cs371date>", d.toString());
+ 
+                  os.write(dateString.getBytes());
+                  os.write("<br>".getBytes());
+               // <br>: The Line Break element
+                  
+            } // end if
    
-         if(sBuffer.toString().contains("<cs371server>")) {
-            os.write("<html><head></head><body>\n".getBytes());
-            os.write(s.getBytes());
-            os.write("</body></html>\n".getBytes());         
-         }   
+            if(line.contains("<cs371server>")) {
+            
+               String serverString = line.replaceAll("<cs371server>", s);
+               os.write(serverString.getBytes());
+               os.write("<br>".getBytes());
+               // <br>: The Line Break element                        
+            } // end if   
+            
+            // This is the convenient way to write the contents in text/html file
+            os.write(line.getBytes());
+            os.write("<br>".getBytes());            
+         } // end while
+      } // end if
+      
+      else if(toRead.exists() && contentType.toLowerCase().contains(("image").toLowerCase())){
+         FileInputStream streamInIMG = new FileInputStream(toRead);
+         byte [] img_data = new byte[(int)toRead.length()];
+         streamInIMG.read(img_data);
+         streamInIMG.close();
+
+           DataOutputStream streamOutIMG = new DataOutputStream(os);
+           streamOutIMG.write(img_data);
+           streamOutIMG.close();
       }
-   
+            
       else {
          os.write("<html><head></head><body>\n".getBytes());
          os.write("<h3>404 Not Found !</h3>\n".getBytes());
          os.write("</body></html>\n".getBytes());      
       }
 
-   }
+   } // end writeContent
 
 } // end class
 
